@@ -1,0 +1,23 @@
+services:
+  postgresql:
+    container_name: authentication_pg_sql
+    image: postgres
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      PGDATA: /data/postgres
+    volumes:
+      - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - authentication-net
+    restart: unless-stopped
+
+
+networks:
+  authentication-net:
+    driver: bridge
+
+volumes:
+  postgres:
