@@ -31,7 +31,6 @@ public interface AuthenticationInterace {
                   - First name can't be blank
                   - Last name can't be blank
                   - Invalid email entered
-                  - Password must contain at least 8 characters, one uppercase, one lowercase and one number
                   - Please choose your gender
                   - Please choose a role
             """,
