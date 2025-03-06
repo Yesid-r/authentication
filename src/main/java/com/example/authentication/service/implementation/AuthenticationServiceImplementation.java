@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -119,6 +120,7 @@ public class AuthenticationServiceImplementation implements AuthenticationServic
             } else {
                 user.setIsVerified(true);
                 userRepository.save(user);
+                cacheManager.getCache("user").evict(emailEntered);
                 log.info("the user email {} is successfully verified", user.isEnabled());
                 RegisterVerifyResponse jwtToken = jwtService.generateJwtToken(user);
                 return new ResponseEntity<>(jwtToken, HttpStatus.CREATED);
@@ -198,6 +200,9 @@ public class AuthenticationServiceImplementation implements AuthenticationServic
     @Override
     public ResponseEntity<?> verifyOtp(RegisterVerifyRequest registerVerifyRequest) {
         String email = registerVerifyRequest.getEmail().trim().toLowerCase();
+        if (registerVerifyRequest.getOtp() == null || registerVerifyRequest.getOtp().isEmpty()) {
+            return new ResponseEntity<>(GeneralApiResponse.builder().message("Otp is empty").build(), HttpStatus.BAD_REQUEST);
+        }
         String otp = registerVerifyRequest.getOtp().trim();
         try {
             User user = userRepository.findByEmail(email).orElseThrow(
@@ -207,6 +212,7 @@ public class AuthenticationServiceImplementation implements AuthenticationServic
             log.info("user with email {} not found in database ", email);
             return new ResponseEntity<>(GeneralApiResponse.builder().message("iUser with this email does not exist").build(), HttpStatus.NOT_FOUND);
         }
+
         String cachedOtp = cacheManager.getCache("user").get(email, String.class);
         if (cachedOtp == null) {
             log.info("the otp is not present in cache memory, it has expired for user {}, kindly retry", email);
@@ -223,23 +229,65 @@ public class AuthenticationServiceImplementation implements AuthenticationServic
     public ResponseEntity<?> resetPassword(ResetPasswordRequest resetPasswordRequest) {
         String email = resetPasswordRequest.getEmail().trim().toLowerCase();
         String newPassword = resetPasswordRequest.getPassword();
-        System.out.println("newPassword = " + newPassword);
         String confirmPassword = resetPasswordRequest.getConfirmPassword();
-        System.out.println("confirmPassword = " + confirmPassword);
 
-        if (!newPassword.equals(confirmPassword)) {
-            return new ResponseEntity<>(GeneralApiResponse.builder().message("Password and confirm password do not match").build(), HttpStatus.BAD_REQUEST);
-        }
         try {
+            // 1. Verificar si el usuario existe y está verificado
             User user = userRepository.findByEmail(email).orElseThrow(
                     ResourceNotFoundException::new
             );
+
+            if (!user.getIsVerified()) {
+                log.info("Usuario con email {} no está verificado", email);
+                return new ResponseEntity<>(GeneralApiResponse.builder()
+                        .message("El usuario no está verificado")
+                        .build(), HttpStatus.BAD_REQUEST);
+            }
+
+            // 2. Verificar si existe un OTP válido en memoria
+            String cachedOtp = cacheManager.getCache("user").get(email, String.class);
+            if (cachedOtp == null) {
+                log.info("No hay un OTP válido en caché para el usuario {}, debe verificar OTP primero", email);
+                return new ResponseEntity<>(GeneralApiResponse.builder()
+                        .message("Debe verificar un OTP antes de cambiar la contraseña")
+                        .build(), HttpStatus.BAD_REQUEST);
+            }
+            // implementar metodo verify otp
+            if (!verifyOtp(new RegisterVerifyRequest(email, resetPasswordRequest.getOtp())).getStatusCode().is2xxSuccessful()) {
+                log.info("No hay un OTP válido en caché para el usuario {}, debe verificar OTP primero", email);
+                return new ResponseEntity<>(GeneralApiResponse.builder()
+                        .message("Debe verificar un OTP antes de cambiar la contraseña")
+                        .build(), HttpStatus.BAD_REQUEST);
+            }
+
+
+            // Verificar que las contraseñas coincidan
+            if (!newPassword.equals(confirmPassword)) {
+                return new ResponseEntity<>(GeneralApiResponse.builder()
+                        .message("La contraseña y la confirmación de contraseña no coinciden")
+                        .build(), HttpStatus.BAD_REQUEST);
+            }
+
+            // 3. Cambiar la contraseña
             user.setPassword(passwordEncoder.encode(newPassword));
+
+            // 4. Actualizar el campo isUpdatePassword a true
+            user.setIsUpdatePassword(true);
+
+            // Guardar los cambios
             userRepository.save(user);
-            return new ResponseEntity<>(GeneralApiResponse.builder().message("Password has been reset successfully").build(), HttpStatus.OK);
+
+            // Limpiar el OTP de la caché después de cambiar la contraseña con éxito
+            cacheManager.getCache("user").evict(email);
+
+            return new ResponseEntity<>(GeneralApiResponse.builder()
+                    .message("La contraseña ha sido restablecida con éxito")
+                    .build(), HttpStatus.OK);
         } catch (ResourceNotFoundException ex) {
-            log.info("user with email {} not found in the database", email);
-            return new ResponseEntity<>(GeneralApiResponse.builder().message("user does not exist with this email").build(), HttpStatus.NOT_FOUND);
+            log.info("Usuario con email {} no encontrado en la base de datos", email);
+            return new ResponseEntity<>(GeneralApiResponse.builder()
+                    .message("El usuario no existe con este correo electrónico")
+                    .build(), HttpStatus.NOT_FOUND);
         }
     }
 
@@ -281,10 +329,46 @@ public class AuthenticationServiceImplementation implements AuthenticationServic
         user.setFirstName(registerRequest.getFirstName());
         user.setLastName(registerRequest.getLastName());
         user.setEmail(registerRequest.getEmail().trim().toLowerCase());
-        user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
+        user.setPassword(passwordEncoder.encode(generateValidPassword()));
         user.setRole(registerRequest.getRole());
         user.setGender(registerRequest.getGender());
         user.setIsVerified(false);
+        user.setIsActive(true);
+        user.setIsUpdatePassword(false);
+    }
+
+    private String generateValidPassword() {
+        int length = 12;
+
+        Random random = new Random();
+        String lowercase = "abcdefghijklmnopqrstuvwxyz";
+        String uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        String digits = "0123456789";
+        String specialChars = "@$!%*?&#";
+        String allChars = lowercase + uppercase + digits + specialChars;
+
+        StringBuilder password = new StringBuilder(length);
+
+        password.append(lowercase.charAt(random.nextInt(lowercase.length())));
+        password.append(uppercase.charAt(random.nextInt(uppercase.length())));
+        password.append(digits.charAt(random.nextInt(digits.length())));
+        password.append(specialChars.charAt(random.nextInt(specialChars.length())));
+
+        // Fill remaining length with random characters
+        for (int i = 4; i < length; i++) {
+            password.append(allChars.charAt(random.nextInt(allChars.length())));
+        }
+
+        // Convert to char array for shuffling
+        char[] passwordArray = password.toString().toCharArray();
+        for (int i = 0; i < passwordArray.length; i++) {
+            int j = random.nextInt(passwordArray.length);
+            char temp = passwordArray[i];
+            passwordArray[i] = passwordArray[j];
+            passwordArray[j] = temp;
+        }
+
+        return new String(passwordArray);
     }
 
 }

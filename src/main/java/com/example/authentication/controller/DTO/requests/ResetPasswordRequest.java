@@ -24,4 +24,6 @@ public class ResetPasswordRequest {
     private String password;
     @NotBlank(message = "contraseña de confirmar no coincide")
     private String confirmPassword;
+
+    private String otp;
 }
