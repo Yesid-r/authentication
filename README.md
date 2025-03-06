@@ -33,6 +33,17 @@ This service implements a complete authentication flow with email verification u
                 └── otp-sender.html             # Email template for OTP
 ```
 
+## API Documentation
+
+This project includes comprehensive API documentation powered by Swagger UI.
+To explore and interact with all available endpoints:
+
+1. Start the application locally
+2. Navigate to: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+3. From there, you can browse all available endpoints, test API calls, and understand request/response formats
+
+The Swagger UI provides a convenient interface for testing the authentication service and understanding all available functionality without needing additional tools.
+
 ## Usage Instructions
 ### Prerequisites
 - Java 17 or higher
