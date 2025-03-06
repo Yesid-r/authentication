@@ -1,4 +1,20 @@
 services:
+  authentication-app:
+    container_name: authentication_app
+    build: .
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/postgres
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+    ports:
+      - "8080:8080"
+    networks:
+      - authentication-net
+    depends_on:
+      - postgresql
+    restart: unless-stopped
+
   postgresql:
     container_name: authentication_pg_sql
     image: postgres
@@ -13,7 +29,6 @@ services:
     networks:
       - authentication-net
     restart: unless-stopped
-
 
 networks:
   authentication-net:
