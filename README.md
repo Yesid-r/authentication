@@ -7,7 +7,8 @@ This service implements a complete authentication flow with email verification u
 ## Repository Structure
 ```
 .
-├── docker-compose.yml              # Docker configuration for PostgreSQL database
+├── docker-compose.yml              # Docker configuration for the entire application
+├── Dockerfile                      # Container definition for the authentication service
 ├── pom.xml                        # Maven project configuration and dependencies
 └── src/
     └── main/
@@ -33,48 +34,40 @@ This service implements a complete authentication flow with email verification u
                 └── otp-sender.html             # Email template for OTP
 ```
 
-## API Documentation
+## Quick Start Guide
 
-This project includes comprehensive API documentation powered by Swagger UI.
-To explore and interact with all available endpoints:
-
-1. Start the application locally
-2. Navigate to: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
-3. From there, you can browse all available endpoints, test API calls, and understand request/response formats
-
-The Swagger UI provides a convenient interface for testing the authentication service and understanding all available functionality without needing additional tools.
-
-## Usage Instructions
 ### Prerequisites
-- Java 17 or higher
 - Docker and Docker Compose
-- PostgreSQL (or use provided Docker container)
-- SMTP server access for email sending
 
-### Installation
+### Installation and Deployment
 1. Clone the repository:
 ```bash
 git clone https://github.com/Yesid-r/authentication.git
 cd authentication
 ```
 
-2. Start the PostgreSQL database using Docker:
+2. Start the application using Docker Compose:
 ```bash
 docker-compose up -d
 ```
 
-3. Build the application:
-```bash
-./mvnw clean install
-```
+That's it! The application is now running at [http://localhost:8080](http://localhost:8080) with all necessary dependencies including the PostgreSQL database.
 
-### Quick Start
-1. Start the application:
-```bash
-./mvnw spring-boot:run
-```
+## API Documentation
 
-2. Register a new user:
+This project includes comprehensive API documentation powered by Swagger UI.
+To explore and interact with all available endpoints:
+
+1. Once the application is running
+2. Navigate to: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+3. From there, you can browse all available endpoints, test API calls, and understand request/response formats
+
+The Swagger UI provides a convenient interface for testing the authentication service and understanding all available functionality without needing additional tools.
+
+## Usage Examples
+
+### Registration and Authentication Flow
+1. Register a new user:
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
@@ -87,7 +80,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
   }'
 ```
 
-3. Verify email using OTP:
+2. Verify email using OTP:
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/verify \
   -H "Content-Type: application/json" \
@@ -97,8 +90,7 @@ curl -X POST http://localhost:8080/api/v1/auth/verify \
   }'
 ```
 
-### More Detailed Examples
-1. Login and receive JWT token:
+3. Login and receive JWT token:
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -108,7 +100,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
   }'
 ```
 
-2. Reset password flow:
+### Password Management
 ```bash
 # Request password reset
 curl -X POST http://localhost:8080/api/v1/auth/forgot-password \
@@ -128,26 +120,27 @@ curl -X POST http://localhost:8080/api/v1/auth/reset-password \
   }'
 ```
 
-### Troubleshooting
-1. Email Verification Issues
+## Troubleshooting
+
+### Docker-related Issues
+- Problem: Containers not starting
+  - Check Docker logs: `docker-compose logs`
+  - Verify ports are not in use: `netstat -tuln | grep 8080`
+  - Restart Docker service if needed
+  - Try rebuilding: `docker-compose down && docker-compose up --build -d`
+
+### Email Verification Issues
 - Problem: OTP not received
   - Check spam folder
   - Verify email configuration in application.properties
-  - Enable debug logging: `logging.level.com.example.authentication=DEBUG`
-  - Check email service logs for delivery status
+  - Check container logs: `docker-compose logs authentication-service`
+  - Enable debug logging in docker-compose.yml environment variables
 
-2. Database Connection Issues
-- Problem: Cannot connect to PostgreSQL
-  - Verify Docker container is running: `docker ps`
-  - Check database credentials in application.properties
-  - Ensure port 5432 is available
-  - Database logs: `docker logs authentication_pg_sql`
-
-3. JWT Token Issues
+### JWT Token Issues
 - Problem: Invalid token
   - Check token expiration
   - Verify token format in Authorization header
-  - Enable security debug: `logging.level.org.springframework.security=DEBUG`
+  - Check container logs for security issues
 
 ## Data Flow
 The authentication service follows a layered architecture for processing authentication requests.
@@ -172,6 +165,10 @@ Component interactions:
 
 ![Infrastructure diagram](./docs/infra.png)
 ### Docker Resources
+- Authentication Service Container:
+  - Built from local Dockerfile
+  - Ports: 8080:8080
+  - Network: authentication-net
 - PostgreSQL Container:
   - Name: authentication_pg_sql
   - Image: postgres:latest
@@ -181,7 +178,7 @@ Component interactions:
     - POSTGRES_PASSWORD: root
     - PGDATA: /data/postgres
   - Volume: postgres:/data/postgres
-  - Network: authentication-net (bridge)
+  - Network: authentication-net
 
 ### Cache Configuration
 - Provider: Caffeine
